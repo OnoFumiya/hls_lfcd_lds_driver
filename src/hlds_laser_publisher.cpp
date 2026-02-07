@@ -130,6 +130,7 @@ int main(int argc, char ** argv)
   boost::asio::io_service io;
 
   std::string port;
+  std::string name_space;
   std::string frame_id;
   int baud_rate;
 
@@ -139,10 +140,14 @@ int main(int argc, char ** argv)
   node->get_parameter_or<std::string>("port", port, "/dev/ttyUSB0");
   node->get_parameter_or<std::string>("frame_id", frame_id, "laser");
 
+  name_space = (std::strcmp(node->get_namespace(), "/") != 0)
+              ? std::string(node->get_namespace()).substr(1) + "/"
+              : "";
+
   baud_rate = 230400;
 
   RCLCPP_INFO(node->get_logger(), "Init hlds_laser_publisher Node Main");
-  RCLCPP_INFO(node->get_logger(), "port : %s frame_id : %s", port.c_str(), frame_id.c_str());
+  RCLCPP_INFO(node->get_logger(), "port : %s namespace : %s frame_id : %s", port.c_str(), name_space.c_str(), frame_id.c_str());
 
   try {
     hls_lfcd_lds::LFCDLaser laser(port, baud_rate, io);
@@ -152,7 +157,7 @@ int main(int argc, char ** argv)
 
     while (rclcpp::ok()) {
       auto scan = std::make_shared<sensor_msgs::msg::LaserScan>();
-      scan->header.frame_id = frame_id;
+      scan->header.frame_id = name_space + frame_id;
       laser.poll(scan);
       scan->header.stamp = node->now();
       laser_pub->publish(*scan);

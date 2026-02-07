@@ -25,6 +25,8 @@ from launch_ros.actions import Node
 def generate_launch_description():
     port = LaunchConfiguration('port', default='/dev/ttyUSB0')
 
+    namespace = LaunchConfiguration('namespace', default='')
+
     frame_id = LaunchConfiguration('frame_id', default='laser')
 
     return LaunchDescription([
@@ -42,6 +44,7 @@ def generate_launch_description():
         Node(
             package='hls_lfcd_lds_driver',
             executable='hlds_laser_publisher',
+            namespace=namespace,
             name='hlds_laser_publisher',
             parameters=[{'port': port, 'frame_id': frame_id}],
             output='screen'),
