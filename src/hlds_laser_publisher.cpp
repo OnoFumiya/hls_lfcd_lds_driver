@@ -39,12 +39,15 @@
 
 namespace hls_lfcd_lds
 {
-LFCDLaser::LFCDLaser(const std::string & port, uint32_t baud_rate, boost::asio::io_service & io)
+LFCDLaser::LFCDLaser(const std::string & port, uint32_t baud_rate, boost::asio::io_service & io, float angle_min, float angle_max)
 : port_(port), baud_rate_(baud_rate), shutting_down_(false), serial_(io, port_)
 {
   serial_.set_option(boost::asio::serial_port_base::baud_rate(baud_rate_));
 
   boost::asio::write(serial_, boost::asio::buffer("b", 1));  // start motor
+
+  angle_min_ = angle_min;
+  angle_max_ = angle_max;
 }
 
 LFCDLaser::~LFCDLaser()
@@ -60,7 +63,14 @@ void LFCDLaser::poll(sensor_msgs::msg::LaserScan::SharedPtr scan)
   uint8_t good_sets = 0;
   uint32_t motor_speed = 0;
   rpms = 0;
-  int index;
+  // int index;
+  int ang_deg;
+  int ang_min_deg = (int)(angle_min_ / (2.0 * M_PI / 360.0));
+  int ang_max_deg = (int)(angle_max_ / (2.0 * M_PI / 360.0));
+  ang_min_deg -= 360 * (int)(ang_min_deg / 360);
+  ang_max_deg -= 360 * (int)(ang_max_deg / 360);
+  ang_min_deg += (ang_min_deg < 0) ? 360 : 0;
+  ang_max_deg += (ang_max_deg < 0) ? 360 : 0;
 
   while (!shutting_down_ && !got_scan) {
     // Wait until first data sync of frame: 0xFA, 0xA0
@@ -80,12 +90,16 @@ void LFCDLaser::poll(sensor_msgs::msg::LaserScan::SharedPtr scan)
         boost::asio::read(serial_, boost::asio::buffer(&raw_bytes[2], 2518));
 
         scan->angle_increment = (2.0 * M_PI / 360.0);
-        scan->angle_min = 0.0;
-        scan->angle_max = 2.0 * M_PI - scan->angle_increment;
+        // scan->angle_min = 0.0;
+        // scan->angle_max = 2.0 * M_PI - scan->angle_increment;
+        scan->angle_min = angle_min_;
+        scan->angle_max = angle_max_ - scan->angle_increment;
         scan->range_min = 0.12;
         scan->range_max = 3.5;
-        scan->ranges.resize(360);
-        scan->intensities.resize(360);
+        // scan->ranges.resize(360);
+        // scan->intensities.resize(360);
+        scan->ranges.resize((int)((scan->angle_max - scan->angle_min) / scan->angle_increment) + 1);
+        scan->intensities.resize((int)((scan->angle_max - scan->angle_min) / scan->angle_increment) + 1);
 
         for (uint16_t i = 0; i < raw_bytes.size(); i = i + 42) {
           if (raw_bytes[i] == 0xFA && raw_bytes[i + 1] == (0xA0 + i / 42)) {
@@ -93,7 +107,8 @@ void LFCDLaser::poll(sensor_msgs::msg::LaserScan::SharedPtr scan)
             motor_speed += (raw_bytes[i + 3] << 8) + raw_bytes[i + 2];
 
             for (uint16_t j = i + 4; j < i + 40; j = j + 6) {
-              index = 6 * (i / 42) + (j - 4 - i) / 6;
+              // index = 6 * (i / 42) + (j - 4 - i) / 6;
+              ang_deg = 359 - (6 * (i / 42) + (j - 4 - i) / 6);
 
               // Four bytes per reading
               uint8_t byte0 = raw_bytes[j];
@@ -104,8 +119,21 @@ void LFCDLaser::poll(sensor_msgs::msg::LaserScan::SharedPtr scan)
               uint16_t intensity = (byte1 << 8) + byte0;
               uint16_t range = (byte3 << 8) + byte2;
 
-              scan->ranges[359 - index] = range / 1000.0;
-              scan->intensities[359 - index] = intensity;
+              // scan->ranges[359 - index] = range / 1000.0;
+              // scan->intensities[359 - index] = intensity;
+              if ((ang_min_deg <= ang_deg) && (ang_deg < ang_max_deg)) {
+                scan->ranges[ang_deg - ang_min_deg] = range / 1000.0;
+                scan->intensities[ang_deg - ang_min_deg] = intensity;
+              }
+              else if ((ang_max_deg < ang_min_deg) && ((ang_min_deg <= ang_deg) || (ang_deg < ang_max_deg))) {
+                if (ang_min_deg <= ang_deg) {
+                  scan->ranges[ang_deg - ang_min_deg] = range / 1000.0;
+                  scan->intensities[ang_deg - ang_min_deg] = intensity;
+                } else {
+                  scan->ranges[ang_deg + (359 - ang_min_deg) + 1] = range / 1000.0;
+                  scan->intensities[ang_deg + (359 - ang_min_deg) + 1] = intensity;
+                }
+              }
             }
           }
         }
@@ -132,13 +160,21 @@ int main(int argc, char ** argv)
   std::string port;
   std::string name_space;
   std::string frame_id;
+
+  float angle_min;
+  float angle_max;
+
   int baud_rate;
 
   node->declare_parameter<std::string>("port");
   node->declare_parameter<std::string>("frame_id");
+  node->declare_parameter<float>("angle_min");
+  node->declare_parameter<float>("angle_max");
 
   node->get_parameter_or<std::string>("port", port, "/dev/ttyUSB0");
   node->get_parameter_or<std::string>("frame_id", frame_id, "laser");
+  node->get_parameter_or<float>("angle_min", angle_min, 0.0);
+  node->get_parameter_or<float>("angle_max", angle_max, 2.0 * M_PI);
 
   name_space = (std::strcmp(node->get_namespace(), "/") != 0)
               ? std::string(node->get_namespace()).substr(1) + "/"
@@ -150,7 +186,7 @@ int main(int argc, char ** argv)
   RCLCPP_INFO(node->get_logger(), "port : %s namespace : %s frame_id : %s", port.c_str(), name_space.c_str(), frame_id.c_str());
 
   try {
-    hls_lfcd_lds::LFCDLaser laser(port, baud_rate, io);
+    hls_lfcd_lds::LFCDLaser laser(port, baud_rate, io, angle_min, angle_max);
     laser_pub = node->create_publisher<sensor_msgs::msg::LaserScan>(
       "scan",
       rclcpp::QoS(rclcpp::SensorDataQoS()));

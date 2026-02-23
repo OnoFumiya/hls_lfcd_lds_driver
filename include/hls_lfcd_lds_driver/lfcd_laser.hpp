@@ -54,7 +54,7 @@ public:
   * @param baud_rate The baud rate to open the serial port at.
   * @param io Boost ASIO IO Service to use when creating the serial port object
   */
-  LFCDLaser(const std::string & port, uint32_t baud_rate, boost::asio::io_service & io);
+  LFCDLaser(const std::string & port, uint32_t baud_rate, boost::asio::io_service & io, float angle_min, float angle_max);
 
   /**
   * @brief Default destructor
@@ -78,6 +78,8 @@ private:
   bool shutting_down_;
   boost::asio::serial_port serial_;
   uint16_t motor_speed_;
+  float angle_min_;
+  float angle_max_;
 };
 }  // namespace hls_lfcd_lds
 #endif  // HLS_LFCD_LDS_DRIVER__LFCD_LASER_HPP_
