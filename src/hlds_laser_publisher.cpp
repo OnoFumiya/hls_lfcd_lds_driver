@@ -98,8 +98,8 @@ void LFCDLaser::poll(sensor_msgs::msg::LaserScan::SharedPtr scan)
         scan->range_max = 3.5;
         // scan->ranges.resize(360);
         // scan->intensities.resize(360);
-        scan->ranges.resize((int)((scan->angle_max - scan->angle_min) / scan->angle_increment) + 1);
-        scan->intensities.resize((int)((scan->angle_max - scan->angle_min) / scan->angle_increment) + 1);
+        scan->ranges.resize((int)((scan->angle_max - scan->angle_min) / scan->angle_increment) + 2);
+        scan->intensities.resize((int)((scan->angle_max - scan->angle_min) / scan->angle_increment) + 2);
 
         for (uint16_t i = 0; i < raw_bytes.size(); i = i + 42) {
           if (raw_bytes[i] == 0xFA && raw_bytes[i + 1] == (0xA0 + i / 42)) {
