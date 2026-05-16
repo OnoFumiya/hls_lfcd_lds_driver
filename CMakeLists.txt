@@ -1,7 +1,7 @@
 ################################################################################
 # Set minimum required version of cmake, project name and compile options
 ################################################################################
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(hls_lfcd_lds_driver)
 
 if(NOT CMAKE_CXX_STANDARD)
@@ -17,6 +17,9 @@ if(MSVC)
     _USE_MATH_DEFINES
   )
 endif()
+
+cmake_policy(SET CMP0167 OLD)
+set(Boost_NO_BOOST_CMAKE ON)
 
 ################################################################################
 # Find ament packages and libraries for ament and system dependencies
