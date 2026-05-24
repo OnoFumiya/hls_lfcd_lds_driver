@@ -16,12 +16,8 @@
 #
 # Authors: Darby Lim, Pyo
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.actions import LogInfo
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -29,7 +25,12 @@ from launch_ros.actions import Node
 def generate_launch_description():
     port = LaunchConfiguration('port', default='/dev/ttyUSB0')
 
+    namespace = LaunchConfiguration('namespace', default='')
+
     frame_id = LaunchConfiguration('frame_id', default='laser')
+
+    angle_min = LaunchConfiguration('angle_min', default='-3.14')
+    angle_max = LaunchConfiguration('angle_max', default='3.14')
 
     return LaunchDescription([
 
@@ -41,12 +42,28 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'frame_id',
             default_value=frame_id,
-            description='Specifying frame_id of lidar. Default frame_id is \'laser\''),
+            description="Specifying frame_id of lidar. Default frame_id is 'laser'"),
+
+        DeclareLaunchArgument(
+            'angle_min',
+            default_value=angle_min,
+            description="LaserScan for angle minimamu"),
+
+        DeclareLaunchArgument(
+            'angle_max',
+            default_value=angle_max,
+            description="LaserScan for angle maximamu"),
 
         Node(
             package='hls_lfcd_lds_driver',
             executable='hlds_laser_publisher',
+            namespace=namespace,
             name='hlds_laser_publisher',
-            parameters=[{'port': port, 'frame_id': frame_id}],
+            parameters=[{
+                'port': port,
+                'frame_id': frame_id,
+                'angle_min': angle_min,
+                'angle_max': angle_max,
+            },],
             output='screen'),
     ])
